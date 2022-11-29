@@ -1,0 +1,72 @@
+---
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: replica_set_name
+  labels:
+    key: value
+spec:
+  replicas: no_of_pods
+  selector:  #used to identify existing pods in env
+    matchLabels:
+      key: value
+  template:
+    metadata:
+      name: pod_name
+      labels:
+        key: value
+    spec:
+      containers:
+        - name: container_name
+          image: image_name
+
+# k get rs
+# k scale --replicas=new_number rs replica_set_name
+# What happens when labels are same but other config diff?
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deployment_name
+  labels:
+    key: value
+spec:
+  replicas: no_of_pods
+
+  selectors:
+    matchLabels:
+      key: value
+  template:
+    metadata:
+      name: pod_name
+      labels:
+        key: value
+    spec:
+      containers:
+        - name: container_name
+          image: image_name
+          ports:
+            - containerPort: 8080
+
+# k create deploy deployment_name --image=image_name --replicas=no_of_pods
+# k scale deploy deploy_name --replicas=no_of_pods
+# k edit deploy deploy_name    ----> edits any field of deployment
+
+---
+#NameSpace
+
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: compute-quota
+  namespace: dev
+spec:
+  hard:
+    pods: "10"
+    requests:
+      cpu: "4"
+      memory: "5Gi"
+    limits:
+      cpu: "10"
+      memory: 10Gi

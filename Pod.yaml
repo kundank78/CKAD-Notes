@@ -1,0 +1,121 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pod_name
+  labels:
+    key: value
+  namespace: ns_name
+spec:
+  serviceAccountName: service_acc_nm      # cannot be edited in pod but in deployment this can be edited and deployment will handle rollout for us
+  automountServiceAccountToken: false     # doesn't mount default service account
+  securityContext:                        # pod level security context, can be moved to container level
+    runAsUser: 1000
+    capabilities:
+      add: ["MAC_ADMIN"]
+  volumes:
+    - name: config_map_volume
+      configMap:
+        name: config_map_name
+    - name: secret_volume                 # creates file for each key & value as secret
+      secret:
+        name: secret_name
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:    # preferredDuringSchedulingIgnoredDuringExecution
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: size
+                operator: NotIn                          # Exists ....check in documentation
+                values:
+                  - Small
+  containers:
+    - name: container_name
+      image: image_name
+      ports:
+        - containerPort: port to expose
+      commands: ["sleep2.0"]              # overrides the entrypoint in docker
+      args: ["10"]                        # adds as param in docker run cmd
+      resources:
+        requests:
+          cpu: "1"                        # 1m -> 1v cpu aws
+          memory: "512Mi"
+        limits:
+          cpu: "2"                        # container cannot exceeds its cpu limit
+          memory: "1Gi"                   # container can use more than limit but if it is constant it will terminate
+      env:                                # adding env variables
+        - name: APP_COLOR
+          value: pink
+        - name: APP_COLOR
+          valueFrom:
+            configMapKeyRef:
+              name: config_map_name
+              key: KEY1
+        - name: APP_COLOR
+          valueFrom:
+            secretKeyRef:
+              name: secret_name
+              key: KEY1
+      envFrom:
+        - configMapRef:
+            name: config_map_name
+        - secretRef:
+            name: secret_name
+      tolerations:
+        - key: "app"
+          operator: "Equal"
+          value: "blue"
+          effect: "NoSchedule"
+      nodeSelector:                         # label node with same
+        key: value
+
+# Taint Node
+# k taint node node_name key=value:taint-effect  | Effects: NoSchedule, PreferNoSchedule, NoExecute
+# k label node node_name key=value
+
+
+---
+# Config Map
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: config_map_name
+spec:
+  key1: value1
+  key2: value2
+
+
+# k create configmap config_map_name --from-literal=KEY1=VALUE1 --from-literal=KEY2=VALUE2
+# k create configmap config_map_name --from-file=file_name.properties
+# file_name.properties
+# KEY1=VALUE1
+
+---
+# Secrets
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secret_name
+spec:
+  key1: value1
+  key2: value2
+
+# echo -n 'encode' | base64
+# echo -n 'decode' | base64 --decode
+# k create secret secret_name --from-literal=KEY1=VALUE1 --from-literal=KEY2=VALUE2
+# k create secret secret_name --from-file=file_name.properties
+# file_name.properties
+# KEY1=VALUE1
+
+---
+# Service Account
+# when service account is created a token is generated as secret | This used happen before kube 1.24, after
+# 1.24 you can create token using `k create token service_account_name` this prints token with expiry time
+# Token can be passed as a bearer token while calling kube apis
+# Each namespace has its own service account
+# Pod when created is mounted with volume having token created via token request api(has expiry)
+
+# k create sa service_account_name
+
+
+---
+

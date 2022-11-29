@@ -1,0 +1,17 @@
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: service_name
+
+spec:
+  selector:
+    matchLabels:
+      key: value
+
+
+# k expose pod pod_name --port=port_number --name=svc_name        ----> create cluster ip service with pod's label as selectors
+# k create svc clusterip svc_name --tcp=?:?                       ----> create cluster ip service with selector's as app=svc_name
+
+# k expose pod pod_name --port=80 --type=NodePort                 ----> create node port service with pod's label as selectors
+# k create svc nodeport svc_name --tcp=?:? --node-port=node_port  ----> create nodeport svc with defined node port but doesn't use pod's labels as selectors
