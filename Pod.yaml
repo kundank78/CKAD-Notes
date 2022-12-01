@@ -4,8 +4,11 @@ metadata:
   name: pod_name
   labels:
     key: value
+  annotations:
+    buildVersion: 1.34
   namespace: ns_name
 spec:
+  restartPolicy: Always                   # Always by default, Never & OnFailure
   serviceAccountName: service_acc_nm      # cannot be edited in pod but in deployment this can be edited and deployment will handle rollout for us
   automountServiceAccountToken: false     # doesn't mount default service account
   securityContext:                        # pod level security context, can be moved to container level
@@ -28,6 +31,10 @@ spec:
                 operator: NotIn                          # Exists ....check in documentation
                 values:
                   - Small
+  initContainers:
+    - name: install
+      image: image_name
+
   containers:
     - name: container_name
       image: image_name
@@ -67,11 +74,45 @@ spec:
           effect: "NoSchedule"
       nodeSelector:                         # label node with same
         key: value
+      readinessProbe:
+        periodSeconds: 5
+        initialDelaySeconds: 15
+        failureThreshold: 8
+        httpGet:
+          path: /api/ready
+          port: 5000
+        tcpSocker:
+          port: 8080
+        exec:
+          cmd:
+            - cat
+            - /app/is_ready
+      livenessProbe:
+        periodSeconds: 5
+        initialDelaySeconds: 15
+        failureThreshold: 8
+        httpGet:
+          path: /api/ready
+          port: 5000
+        tcpSocker:
+          port: 8080
+        exec:
+          cmd:
+            - cat
+            - /app/is_ready
+
+# Multi container pod: share same lifecycle & network
+# Patterns: Side Car, Ambassador, Adapter
+
+# POD Conditions
+# PodScheduled -> Initialized -> ContainersReady -> Ready
+
+# k logs -f pod_name container_name   #tail logs for container_name for multi container pod
+#
 
 # Taint Node
 # k taint node node_name key=value:taint-effect  | Effects: NoSchedule, PreferNoSchedule, NoExecute
 # k label node node_name key=value
-
 
 ---
 # Config Map
@@ -118,4 +159,36 @@ spec:
 
 
 ---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: job_name
+spec:
+  completions: 3                            ----> no. of successful job completions | new pods are created until this number is reached
+  parallelism: 3                            ----> creates pods in parallel
+  template:
+    spec:
+      containers:
+        - name: container_name
+          image: image_name
+          command:
+            - cmd1
+      restartPolicy: Never
 
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: cron-job-name
+spec:
+  schedule: "*/1 * * * *"
+  jobTemplate:
+    spec:
+      completions: 3
+      parallelism: 3
+      template:
+        spec:
+          containers:
+            - name: container_name
+              image: image_name
+          restartPolicy: Never
