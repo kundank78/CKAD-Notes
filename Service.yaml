@@ -3,15 +3,88 @@ apiVersion: v1
 kind: Service
 metadata:
   name: service_name
-
 spec:
+  type: NodePort
+  ports:
+    - targetPort: 80                                   # container's port
+      port: 80                                         # service port
+      nodePort: 30008
   selector:
-    matchLabels:
       key: value
+      key1: value1
 
+
+# Load Balancing through services is done in random fashion
+# ClusterIP : creates a virtual ip
+# LoadBalancer
+# NodePort (Range: 30000 - 32767): Exposes node port for every node if pods are distributed
 
 # k expose pod pod_name --port=port_number --name=svc_name        ----> create cluster ip service with pod's label as selectors
 # k create svc clusterip svc_name --tcp=?:?                       ----> create cluster ip service with selector's as app=svc_name
 
 # k expose pod pod_name --port=80 --type=NodePort                 ----> create node port service with pod's label as selectors
 # k create svc nodeport svc_name --tcp=?:? --node-port=node_port  ----> create nodeport svc with defined node port but doesn't use pod's labels as selectors
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ingress_name
+spec:
+  rules:
+    - host: host_name
+      http:
+        paths:
+          - path: /path1
+            pathType: Prefix
+            backend:
+              service:
+                name: svc_name
+                port:
+                  number: port_number
+          - path: /path2
+            pathType: Prefix
+            backend:
+              service:
+                name: svc_name2
+                port:
+                  number: port_number2
+
+# kubectl create ingress <ingress-name> --rule="host/path=service:port"
+# kubectl create ingress ingress-test --rule="wear.my-online-store.com/wear*=wear-service:80"
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: name
+  namespace: pod_namespace
+spec:
+  podSelector:
+    matchLabels:
+      key: value
+  policyTypes:                           # If only policyTypes is present it blocks all Ingress & Egress traffic
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              key: other-pod
+          namespaceSelector:             # If only namespace selector defined all pods under given ns will be able to access
+            matchLabels:
+              name: other_ns_name
+        - ipBlock:
+            cidr: 192.168.5.10/32
+      ports:
+        - protocol: TCP
+          port: 3306                     # incoming traffic on port
+  egress:
+    to:
+      - ipBlock:
+          cidr: 192.168.5.10/32
+    ports:
+      - protocol: TCP
+        port: 80                         # port on server ip
+
+

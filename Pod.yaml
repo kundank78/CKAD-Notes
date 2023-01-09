@@ -13,42 +13,56 @@ spec:
   automountServiceAccountToken: false     # doesn't mount default service account
   securityContext:                        # pod level security context, can be moved to container level
     runAsUser: 1000
-    capabilities:
-      add: ["MAC_ADMIN"]
   volumes:
+    - name: pvc_volume
+      persistentVolumeClaim:
+        claimName: pvc_name
     - name: config_map_volume
       configMap:
         name: config_map_name
     - name: secret_volume                 # creates file for each key & value as secret
       secret:
-        name: secret_name
+        secretName: secret_name
+    - name: empty_dir_vol                 # exists as long as pod on node disk, ram or network storage
+      emptyDir:
+        sizeLimit: 500Mi
+    - name: host_volume
+      hostPath:                           # mount file or directory from host node's filesystem
+        type: Directory | DirectoryOrCreate
+        path: /data
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:    # preferredDuringSchedulingIgnoredDuringExecution
         nodeSelectorTerms:
           - matchExpressions:
               - key: size
-                operator: NotIn                          # Exists ....check in documentation
+                operator: NotIn                          # In, NotIn, Exists, DoesNotExist, Gt and Lt.
                 values:
                   - Small
   initContainers:
     - name: install
       image: image_name
-
   containers:
     - name: container_name
       image: image_name
       ports:
         - containerPort: port to expose
-      commands: ["sleep2.0"]              # overrides the entrypoint in docker
+      command: ["sleep2.0"]               # overrides the entrypoint in docker
       args: ["10"]                        # adds as param in docker run cmd
-      resources:
+      resources:                          # Scheduled on node if sum of requests of all container is less than node limit
         requests:
-          cpu: "1"                        # 1m -> 1v cpu aws
+          cpu: "1"                        # "1" -> 1000m | 1m -> 1v cpu aws | If request not specified, it matches limit (same for memory)
           memory: "512Mi"
         limits:
           cpu: "2"                        # container cannot exceeds its cpu limit
-          memory: "1Gi"                   # container can use more than limit but if it is constant it will terminate
+          memory: "1Gi"                   # container can use more memory than limit but if it is continuous it will terminate | If limit not specified, it can use all of node's memory and finally get killed |
+                                          # If limit range is defined for namespace it uses it as default
+      securityContext:
+        capabilities:
+          add: [ "MAC_ADMIN" ]
+      volumeMounts:
+        - mountPath: /opt                 # this will be in sync
+          name: volume_name
       env:                                # adding env variables
         - name: APP_COLOR
           value: pink
@@ -81,10 +95,10 @@ spec:
         httpGet:
           path: /api/ready
           port: 5000
-        tcpSocker:
+        tcpSocket:
           port: 8080
         exec:
-          cmd:
+          command:
             - cat
             - /app/is_ready
       livenessProbe:
@@ -94,10 +108,10 @@ spec:
         httpGet:
           path: /api/ready
           port: 5000
-        tcpSocker:
+        tcpSocket:
           port: 8080
         exec:
-          cmd:
+          command:
             - cat
             - /app/is_ready
 
@@ -108,10 +122,14 @@ spec:
 # PodScheduled -> Initialized -> ContainersReady -> Ready
 
 # k logs -f pod_name container_name   #tail logs for container_name for multi container pod
-#
+# k replace -f pod.yaml --force       # replace existing pod with new one
+# k get pods -l key=value --no-headers | wc -l   ---> count of pod
+# k get pod --show-labels
+# k label po -l "app in(v1,v2)" tier=web
 
 # Taint Node
 # k taint node node_name key=value:taint-effect  | Effects: NoSchedule, PreferNoSchedule, NoExecute
+# k taint node node_name key=value:taint-effect- | Remove taint
 # k label node node_name key=value
 
 ---
@@ -144,7 +162,9 @@ spec:
 # echo -n 'decode' | base64 --decode
 # k create secret secret_name --from-literal=KEY1=VALUE1 --from-literal=KEY2=VALUE2
 # k create secret secret_name --from-file=file_name.properties
-# file_name.properties
+# file_name.propertiesRetain
+
+
 # KEY1=VALUE1
 
 ---
@@ -156,7 +176,9 @@ spec:
 # Pod when created is mounted with volume having token created via token request api(has expiry)
 
 # k create sa service_account_name
-
+# k create token <sa_name>
+# Manually create long-lived token for service account
+# Annotate secret with kubernetes.io/service-account.name: <sa_name> and controller will auto-inject token inside the secret
 
 ---
 apiVersion: batch/v1
@@ -192,3 +214,7 @@ spec:
             - name: container_name
               image: image_name
           restartPolicy: Never
+
+# k create job job_name --image=image_name -- command
+# k create cronjob cron_name --image=image_name --schedule="* * * * *"
+

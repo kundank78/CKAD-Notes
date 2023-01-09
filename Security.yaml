@@ -1,0 +1,93 @@
+Edit the kube-apiserver static pod configured by kubeadm to pass in the user details. 
+The file is located at /etc/kubernetes/manifests/kube-apiserver.yaml
+
+# k config use-context context_name
+# k config view
+# k config set-context --current --namespace=name
+
+
+API Groups
+# k proxy     ---> exposes kube api on local        
+# k api-resources --namespaced=true
+--> Actions- list, get, create, update, delete, watch
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kube-apiserver
+  namespace: kube-system
+spec:
+  containers:
+    - command:
+        - kube-apiserver
+        - --authorization-mode=Node,RBAC
+          <content-hidden>
+        - --basic-auth-file=/tmp/users/user-details.csv
+      image: k8s.gcr.io/kube-apiserver-amd64:v1.11.3
+      name: kube-apiserver
+      volumeMounts:
+        - mountPath: /tmp/users
+          name: usr-details
+          readOnly: true
+  volumes:
+    - hostPath:
+        path: /tmp/users
+        type: DirectoryOrCreate
+      name: usr-details
+
+---
+# Roles
+# k create role role_name --verb=get,ist --resources=pods,pods/status --resource-name
+# k create rolebinding role_binding_name --clusterrole=cluster_role_name --user=user_name --namespace=ns_name
+# k auth can-i <cmd> -as user
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  namespace: default
+  name: pod-reader
+rules:
+  - apiGroups: [""] # "" indicates the core API group
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "watch", "list"] | # ["*"] --> everything
+
+---
+# This role binding allows "user1" to read pods in the "default" namespace.
+kind: RoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: read-pods
+  namespace: default
+subjects:
+  - kind: User
+    name: user1 # Name is case-sensitive
+    apiGroup: rbac.authorization.k8s.io
+roleRef:
+  kind: Role #this must be Role or ClusterRole
+  name: pod-reader # this must match the name of the Role or ClusterRole you wish to bind to
+  apiGroup: rbac.authorization.k8s.io
+
+---
+# API Versions
+vXalphaY --> vXbetaY --> vX
+
+Alpha -> Not enabled by default
+Beta -> Enabled by default
+GA(Stable) -> Enabled by default
+
+Preferred version -> version k8s will use while retrieving info
+Storage Version -> version objects will converted to while storing in etcd cluster
+
+# API Deprecations
+1. Api elements can be removed only by incrementing API version of group
+2. Api objects must be able to round trip between API versions in a given release without information loss
+   with exception of whole REST resources which don't exist in some version
+3. Other than the most recent API version in each track, older API version must be supported after their announced
+   deprecation for a duration of no less than-
+   a. GA (stable)- 12 months or 3 releases (whichever is longer)
+   b. Beta - 9 months or 3 releases (whichever is longer)
+   c. Alpha - 0 releases
+In Kubernetes versions -> X.Y.Z
+Where X stands for major, Y stands for minor and Z stands for patch version.
+# k convert -f <old_file> --output-version group/version
+
+# Add --runtime-config=<api-group>/<version>  --> enable new version

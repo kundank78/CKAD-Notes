@@ -1,0 +1,13 @@
+alias k="kubectl config set-context --current --namespace"
+
+k run po_name --image=image_name --dry-run=client -o yaml > p.yaml
+k create deploy deploy_name --image=image --replicas=3 
+k rollout status deploy deploy name
+
+k rollout history deploy name
+
+
+k create svc clusterip svc_name --tcp=80:80
+k create svc nodeport --tcp=8080:80 --node-port=33020
+
+k create role role_anme --verb=get,create,delete --resource=pods,deploy
